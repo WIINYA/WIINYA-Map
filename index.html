@@ -882,7 +882,7 @@ details.clim[open] summary:before{content:"▾ ";}
 /* Go to lat/long control */
 .gotoctrl{background:#fff;border-radius:8px;box-shadow:0 1px 6px rgba(0,0,0,.18);padding:5px;margin-left:10px}
 .gotoctrl form{display:flex;gap:5px;align-items:center}
-.gotoctrl input{border:1px solid #cfcfcf;border-radius:6px;padding:6px 9px;font-size:12.5px;width:158px;outline:none;font-family:inherit}
+.gotoctrl input{border:1px solid #cfcfcf;border-radius:6px;padding:6px 9px;font-size:12.5px;width:190px;outline:none;font-family:inherit}
 .gotoctrl input:focus{border-color:#2a78d6}
 .gotoctrl button{border:1px solid #2a78d6;background:#2a78d6;color:#fff;border-radius:6px;padding:6px 12px;font-size:12.5px;font-weight:600;cursor:pointer}
 .gotoctrl button:hover{background:#1f66c0}
@@ -1400,23 +1400,40 @@ function _parseLatLng(s){
   return [lat,lng];
 }
 let _gotoMarker=null;
-function _doGoto(inp){
-  const c=_parseLatLng(inp.value);
-  if(!c){ inp.style.borderColor='#d64545'; inp.title='Enter e.g. -42.10, 146.12'; setTimeout(()=>{inp.style.borderColor='';},1400); return; }
-  window._map.flyTo(c, Math.max(window._map.getZoom(),11), {duration:0.8});
+function _esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function _gotoPin(c,label,zoom){
+  window._map.flyTo(c, Math.max(window._map.getZoom(), zoom||11), {duration:0.8});
   if(_gotoMarker) window._map.removeLayer(_gotoMarker);
   _gotoMarker=L.marker(c,{icon:L.divIcon({className:'gotopin',html:'⌖',iconSize:[26,26],iconAnchor:[13,13]}),zIndexOffset:1000}).addTo(window._map);
-  _gotoMarker.bindPopup('<b>'+c[0].toFixed(5)+', '+c[1].toFixed(5)+'</b><br><a href="#" id="gotoclear">remove pin</a>').openPopup();
+  _gotoMarker.bindPopup('<b>'+_esc(label)+'</b><br><span style="color:#6b6b6b">'+c[0].toFixed(5)+', '+c[1].toFixed(5)+'</span><br><a href="#" id="gotoclear">remove pin</a>').openPopup();
   _gotoMarker.on('popupopen',()=>{ const a=document.getElementById('gotoclear'); if(a) a.onclick=function(e){ e.preventDefault(); if(_gotoMarker){window._map.removeLayer(_gotoMarker); _gotoMarker=null;} }; });
+}
+function _gotoErr(inp,msg){ inp.style.borderColor='#d64545'; inp.title=msg; setTimeout(()=>{inp.style.borderColor='';},1600); }
+function _doGoto(inp,btn){
+  const raw=(inp.value||'').trim();
+  if(!raw) return;
+  const c=_parseLatLng(raw);
+  if(c){ _gotoPin(c, 'Pinned location'); return; }
+  // Not coordinates -> geocode as a place/location name via OpenStreetMap Nominatim (needs internet)
+  const label0=btn?btn.textContent:''; if(btn){ btn.textContent='…'; btn.disabled=true; }
+  const done=()=>{ if(btn){ btn.textContent=label0||'Go'; btn.disabled=false; } };
+  const url='https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&addressdetails=0&q='+encodeURIComponent(raw);
+  fetch(url,{headers:{'Accept':'application/json'},referrerPolicy:'strict-origin-when-cross-origin'})
+    .then(r=>r.ok?r.json():Promise.reject())
+    .then(j=>{ done();
+      if(j&&j.length){ const p=j[0]; const z=/(city|town|village|suburb|hamlet|county|state|island|peninsula)/.test(p.type||p.addresstype||'')?12:11;
+        _gotoPin([parseFloat(p.lat),parseFloat(p.lon)], p.display_name||raw, z); }
+      else { _gotoErr(inp,'No place found — try a different name, or lat, long'); } })
+    .catch(()=>{ done(); _gotoErr(inp,'Place search needs an internet connection'); });
 }
 function initGoto(){
   if(!window._map||typeof L==="undefined") return;
   const ctrl=L.control({position:'topleft'});
   ctrl.onAdd=function(){
     const d=L.DomUtil.create('div','gotoctrl leaflet-bar');
-    d.innerHTML='<form id="gotoform"><input id="gotoin" type="text" placeholder="Go to  lat, long" autocomplete="off" spellcheck="false"><button type="submit" title="Go to coordinates">Go</button></form>';
+    d.innerHTML='<form id="gotoform"><input id="gotoin" type="text" placeholder="Find a place, or lat, long" autocomplete="off" spellcheck="false"><button type="submit" id="gotogo" title="Search a place or coordinates">Go</button></form>';
     L.DomEvent.disableClickPropagation(d); L.DomEvent.disableScrollPropagation(d);
-    d.querySelector('#gotoform').addEventListener('submit',function(ev){ ev.preventDefault(); _doGoto(d.querySelector('#gotoin')); });
+    d.querySelector('#gotoform').addEventListener('submit',function(ev){ ev.preventDefault(); _doGoto(d.querySelector('#gotoin'), d.querySelector('#gotogo')); });
     return d;
   };
   ctrl.addTo(window._map);
