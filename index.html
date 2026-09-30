@@ -984,8 +984,25 @@ function popup(r){
 }
 
 const map=L.map('map',{worldCopyJump:true,minZoom:2}).setView([-30,140],4);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-  maxZoom:19, attribution:'\u00a9 OpenStreetMap contributors'}).addTo(map);
+/* WIINYA basemap fix 2026-09-30 (public build).
+   OpenStreetMap tiles replaced with Esri basemap services.
+   Reason: OpenStreetMap now enforces its tile usage policy, which requires an identifying
+   Referer header. Tiles fail outright from file:// and the policy may tighten further for
+   hosted pages. Esri public basemap services do not require a Referer. Attribution to Esri is
+   required and is set below. The removed OpenStreetMap line is preserved verbatim in a comment
+   at the foot of this file. */
+(function(){
+  var WIINYA_BASE = {
+    "Topographic": L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
+      {maxZoom:19, maxNativeZoom:19, attribution:"Tiles &copy; Esri and contributors"}),
+    "Satellite imagery": L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      {maxZoom:19, maxNativeZoom:19, attribution:"Tiles &copy; Esri and contributors"}),
+    "Shaded relief": L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Shaded_Relief/MapServer/tile/{z}/{y}/{x}",
+      {maxZoom:19, maxNativeZoom:13, attribution:"Tiles &copy; Esri and contributors"})
+  };
+  WIINYA_BASE["Topographic"].addTo(map);
+  L.control.layers(WIINYA_BASE, null, {collapsed:true}).addTo(map);
+})();
 
 const cluster=L.markerClusterGroup({maxClusterRadius:45,spiderfyOnMaxZoom:true,showCoverageOnHover:false});
 const all=[];
@@ -1371,4 +1388,9 @@ function buildTable(ds){
 try{ (typeof RECORDS!=="undefined"?RECORDS:[]).forEach(r=>{ if(window.SITEDATA[r.key]){ if(!window.SITEDATA[r.key].name)window.SITEDATA[r.key].name=r.name; window.SITEDATA[r.key].state=r.state; } }); }catch(e){}
 document.addEventListener('keydown',e=>{ if(e.key==='Escape')closeViz(); });
 </script>
-</body></html>
+</body>
+<!-- WIINYA basemap fix 2026-09-30. Original basemap line removed from the map script:
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  maxZoom:19, attribution:'\u00a9 OpenStreetMap contributors'}).addTo(map);
+-->
+</html>
